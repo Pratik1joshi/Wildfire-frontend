@@ -32,13 +32,17 @@ export default function Home() {
       <SmoothScroll />
       
       {/* Pass down date, model, and risk filter state & handlers */}
+      <Suspense fallback={<div>Loading...</div>}>
+      <Suspense fallback={<div>Loading search functionality...</div>}>
+        
+
       <HeroSection 
         selectedDate={selectedDate} 
         riskFilters={riskFilters}
         onDateChange={handleDateChange}
         onRiskFilterChange={handleRiskFilterChange}
         onModelChange={handleModelChange}
-      />
+        />
       
       <MapComparison />
       {/* Pass the shared state*/}
@@ -46,7 +50,9 @@ export default function Home() {
         selectedDate={selectedDate} 
         riskFilters={riskFilters} 
         model={selectedModel}
-      />
+        />
+      </Suspense>
+      </Suspense>
       <Footer />
     </main>
   )
