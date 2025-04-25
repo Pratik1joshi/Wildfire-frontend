@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Navbar from "@/components/navbar"
 import HeroSection from "@/components/hero-section"
 import FireAlerts from "@/components/fire-alerts"
