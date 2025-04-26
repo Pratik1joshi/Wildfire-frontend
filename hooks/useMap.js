@@ -1,14 +1,31 @@
 "use client";
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 
 export function useMap() {
   const [isLoading, setIsLoading] = useState(false);
   const markersRef = useRef({});
   const layerGroupsRef = useRef({});
+  const leafletRef = useRef(null);
 
-  const initMap = useCallback((container, id) => {
-    // Dynamically import Leaflet to avoid SSR issues
-    const L = require('leaflet');
+  // Load Leaflet on the client side only
+  useEffect(() => {
+    const loadLeaflet = async () => {
+      if (typeof window !== 'undefined') {
+        const L = await import('leaflet');
+        leafletRef.current = L.default || L;
+      }
+    };
+    loadLeaflet();
+  }, []);
+
+  const initMap = useCallback(async (container, id) => {
+    // Make sure Leaflet is loaded
+    if (!leafletRef.current) {
+      const L = await import('leaflet');
+      leafletRef.current = L.default || L;
+    }
+    
+    const L = leafletRef.current;
     
     // Create a new map instance
     const map = L.map(container, {
@@ -29,10 +46,16 @@ export function useMap() {
     return map;
   }, []);
 
-  const addPoints = useCallback((points, mapType) => {
+  const addPoints = useCallback(async (points, mapType) => {
     if (!points || !points.length) return;
     
-    const L = require('leaflet');
+    // Make sure Leaflet is loaded
+    if (!leafletRef.current) {
+      const L = await import('leaflet');
+      leafletRef.current = L.default || L;
+    }
+    
+    const L = leafletRef.current;
     const markers = [];
     
     console.log(`Adding ${points.length} points to ${mapType} map`);
@@ -161,8 +184,14 @@ export function useMap() {
     });
   }, []);
 
-  const centerOnPoint = useCallback((lat, lng, zoom = 13) => {
-    const L = require('leaflet');
+  const centerOnPoint = useCallback(async (lat, lng, zoom = 13) => {
+    // Make sure Leaflet is loaded
+    if (!leafletRef.current) {
+      const L = await import('leaflet');
+      leafletRef.current = L.default || L;
+    }
+    
+    const L = leafletRef.current;
     
     // Get all map instances
     Object.values(layerGroupsRef.current).forEach(layerGroup => {
