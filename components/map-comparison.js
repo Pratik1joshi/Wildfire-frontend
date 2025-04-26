@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import ClientMapWrapper from "./client-map-wrapper";
@@ -34,10 +34,12 @@ export default function MapComparison() {
   const [realtimeDate, setRealtimeDate] = useState(new Date());
   const [dataSource, setDataSource] = useState("BIPAD");
   const [modelVersion, setModelVersion] = useState("xgb_v1.0");
-  const [availableModels, setAvailableModels] = useState([]);
-  const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [isOverlayMode, setIsOverlayMode] = useState(false); // New state for overlay mode
-  const pollingIntervalRef = useRef(null);
+
+  // Define static models instead of fetching from API
+  const availableModels = useMemo(() => [
+    { id: "xgb_v1.0", name: "XGBoost v1.0", isActive: true },
+  ], []);
 
   // State for risk filters
   const [predictionFilters, setPredictionFilters] = useState({
@@ -74,15 +76,6 @@ export default function MapComparison() {
     const newSource = e.target.value;
     console.log(`Data source changed from ${dataSource} to ${newSource}`);
     setDataSource(newSource);
-    
-    // Force refresh by clearing and re-fetching data
-    // This is optional, but helps ensure the component updates
-    if (dataSource !== newSource) {
-      setIsLoadingModels(true);
-      setTimeout(() => {
-        setIsLoadingModels(false);
-      }, 100);
-    }
   };
   
   // Toggle overlay mode
@@ -90,76 +83,15 @@ export default function MapComparison() {
     setIsOverlayMode(prev => !prev);
   };
 
-  // Fetch available models and active model on component mount
+  // Set the default active model on component mount
   useEffect(() => {
-    const fetchModels = async () => {
-      setIsLoadingModels(true);
-      try {
-        // First try to get all models
-        const modelsResponse = await fetch('/api/models');
-        if (modelsResponse.ok) {
-          const modelsList = await modelsResponse.json();
-          setAvailableModels(modelsList);
-          
-          // Use active model as default
-          const activeModel = modelsList.find(model => model.isActive);
-          if (activeModel) {
-            setModelVersion(activeModel.id);
-            console.log(`Active model set to: ${activeModel.name} (${activeModel.id})`);
-          }
-        } else {
-          // Try to get just the active model as fallback
-          const activeResponse = await fetch('/api/models/active');
-          if (activeResponse.ok) {
-            const activeModel = await activeResponse.json();
-            setModelVersion(activeModel.id);
-            setAvailableModels([activeModel]);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching models:", error);
-        // Fallback to having just the default model
-        setAvailableModels([
-          { id: "xgb_v1.0", name: "XGBoost v1.0" }
-        ]);
-      } finally {
-        setIsLoadingModels(false);
-      }
-    };
-    
-    // Initial fetch
-    fetchModels();
-    
-    // Set up polling to check for active model changes
-    pollingIntervalRef.current = setInterval(() => {
-      fetch('/api/models/active')
-        .then(res => res.ok ? res.json() : null)
-        .then(activeModel => {
-          if (activeModel && activeModel.id !== modelVersion) {
-            // Only update if the active model has changed
-            console.log(`Active model changed to: ${activeModel.name} (${activeModel.id})`);
-            setModelVersion(activeModel.id);
-            
-            // Get all models to update the dropdown
-            fetch('/api/models')
-              .then(res => res.ok ? res.json() : [])
-              .then(models => {
-                if (models.length > 0) {
-                  setAvailableModels(models);
-                }
-              });
-          }
-        })
-        .catch(err => console.error("Error checking active model:", err));
-    }, 30000); // Check every 30 seconds
-    
-    // Clean up the interval on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-  }, [modelVersion]); // Include modelVersion in dependency array to ensure comparison works correctly
+    // Find the active model from our static list
+    const activeModel = availableModels.find(model => model.isActive);
+    if (activeModel) {
+      setModelVersion(activeModel.id);
+      console.log(`Active model set to: ${activeModel.name} (${activeModel.id})`);
+    }
+  }, [availableModels]);
 
   return (
     <section id="compare" className="py-16 bg-gray-50">
@@ -243,29 +175,23 @@ export default function MapComparison() {
                 </div>
               </div>
               
-              {/* Model Selector - Added to overlay mode */}
+              {/* Model Selector - Static models */}
               <div className="w-full sm:w-auto">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                     Model:
                   </label>
-                  {isLoadingModels ? (
-                    <div className="bg-gray-100 border-none text-gray-400 py-1 px-3 rounded text-sm">
-                      Loading...
-                    </div>
-                  ) : (
-                    <select
-                      className="appearance-none bg-gray-100 border-none text-gray-700 py-1 px-3 pr-8 rounded text-sm"
-                      value={modelVersion}
-                      onChange={(e) => setModelVersion(e.target.value)}
-                    >
-                      {availableModels.map(model => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}{model.isActive ? " (Active)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <select
+                    className="appearance-none bg-gray-100 border-none text-gray-700 py-1 px-3 pr-8 rounded text-sm"
+                    value={modelVersion}
+                    onChange={(e) => setModelVersion(e.target.value)}
+                  >
+                    {availableModels.map(model => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}{model.isActive ? " (Active)" : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               
@@ -388,29 +314,23 @@ export default function MapComparison() {
                 </div>
               </div>
 
-              {/* Model Selector */}
+              {/* Model Selector - Static models */}
               <div className="mb-4">
                 <div className="w-full flex items-center gap-2">
                   <label className="text-sm font-medium text-gray-700">
                     Model:
                   </label>
-                  {isLoadingModels ? (
-                    <div className="bg-gray-100 border-none text-gray-400 py-2 px-4 rounded flex-1">
-                      Loading models...
-                    </div>
-                  ) : (
-                    <select
-                      className="appearance-none bg-gray-100 border-none text-gray-700 py-2 px-4 pr-8 rounded flex-1"
-                      value={modelVersion}
-                      onChange={(e) => setModelVersion(e.target.value)}
-                    >
-                      {availableModels.map(model => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}{model.isActive ? " (Active)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <select
+                    className="appearance-none bg-gray-100 border-none text-gray-700 py-2 px-4 pr-8 rounded flex-1"
+                    value={modelVersion}
+                    onChange={(e) => setModelVersion(e.target.value)}
+                  >
+                    {availableModels.map(model => (
+                      <option key={model.id} value={model.id}>
+                        {model.name}{model.isActive ? " (Active)" : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

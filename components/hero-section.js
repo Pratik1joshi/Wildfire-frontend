@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import "leaflet/dist/leaflet.css";
 import ClientMapWrapper from "./client-map-wrapper";
@@ -17,9 +17,13 @@ export default function HeroSection({
   const searchParams = useSearchParams();
   const [focusPoint, setFocusPoint] = useState(null);
   const [selectedModel, setSelectedModel] = useState("xgb_v1.0");
-  const [availableModels, setAvailableModels] = useState([]);
-  const [isLoadingModels, setIsLoadingModels] = useState(true);
-  const pollingIntervalRef = useRef(null);
+  
+  // Define static models instead of fetching from API
+  const availableModels = useMemo(() => [
+    { id: "xgb_v1.0", name: "XGBoost v1.0", isActive: true },
+    // { id: "rf_v1.0", name: "Random Forest v1.0", isActive: false },
+    // { id: "nn_v1.0", name: "Neural Network v1.0", isActive: false }
+  ], []);
   
   // Use hardcoded provinces and districts with useMemo like in fire-alerts.js
   const [selectedProvince, setSelectedProvince] = useState("all");
@@ -167,78 +171,15 @@ export default function HeroSection({
     }
   };
 
-  // Fetch available models and the active model
+  // Set the default active model on component mount
   useEffect(() => {
-    const fetchModels = async () => {
-      setIsLoadingModels(true);
-      try {
-        // First try to get all models
-        const modelsResponse = await fetch('/api/models');
-        if (modelsResponse.ok) {
-          const modelsList = await modelsResponse.json();
-          setAvailableModels(modelsList);
-          
-          // Find the active model and set it as selected
-          const activeModel = modelsList.find(model => model.isActive);
-          if (activeModel) {
-            handleModelChange(activeModel.id); // Use the handleModelChange function
-            console.log(`Active model set to: ${activeModel.name} (${activeModel.id})`);
-          }
-        } else {
-          // If getting all models fails, try to get just the active model
-          const activeResponse = await fetch('/api/models/active');
-          if (activeResponse.ok) {
-            const activeModel = await activeResponse.json();
-            handleModelChange(activeModel.id); // Use the handleModelChange function
-            setAvailableModels([activeModel]);
-          } else {
-            console.error("Failed to fetch models");
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching models:", error);
-        // Fallback to having just a single default model
-        setAvailableModels([
-          { id: "xgb_v1.0", name: "XGBoost v1.0" }
-        ]);
-      } finally {
-        setIsLoadingModels(false);
-      }
-    };
-    
-    // Initial fetch
-    fetchModels();
-    
-    // Set up polling to check for active model changes
-    pollingIntervalRef.current = setInterval(() => {
-      fetch('/api/models/active')
-        .then(res => res.ok ? res.json() : null)
-        .then(activeModel => {
-          if (activeModel && activeModel.id !== selectedModel) {
-            // Only update if the active model has changed
-            console.log(`Active model changed to: ${activeModel.name} (${activeModel.id})`);
-            handleModelChange(activeModel.id); // Use the handleModelChange function
-            
-            // Get all models to update the dropdown
-            fetch('/api/models')
-              .then(res => res.ok ? res.json() : [])
-              .then(models => {
-                if (models.length > 0) {
-                  setAvailableModels(models);
-                }
-              });
-          }
-        })
-        .catch(err => console.error("Error checking active model:", err));
-    }, 30000); // Check every 30 seconds
-    
-    // Clean up the interval on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
-  }, [onModelChange]); // Add onModelChange to dependencies
+    // Find the active model from our static list
+    const activeModel = availableModels.find(model => model.isActive);
+    if (activeModel) {
+      handleModelChange(activeModel.id);
+      console.log(`Active model set to: ${activeModel.name} (${activeModel.id})`);
+    }
+  }, [availableModels]);
 
   // Extract coordinates from URL if present
   useEffect(() => {
@@ -318,26 +259,20 @@ export default function HeroSection({
           </div>
         </div>
 
-        {/* Model Selector - Dynamic based on available models */}
+        {/* Model Selector - Using static models */}
         <div className="mb-4">
           <div className="text-sm font-semibold mb-2">Model Version</div>
-          {isLoadingModels ? (
-            <div className="bg-gray-50 border border-gray-200 text-gray-400 py-2 px-3 rounded w-full">
-              Loading models...
-            </div>
-          ) : (
-            <select
-              value={selectedModel}
-              onChange={(e) => handleModelChange(e.target.value)}
-              className="bg-gray-50 border border-gray-200 text-gray-700 py-2 px-3 rounded w-full focus:outline-none focus:border-primary appearance-none"
-            >
-              {availableModels.map(model => (
-                <option key={model.id} value={model.id}>
-                  {model.id}{model.isActive ? " (Active)" : ""}
-                </option>
-              ))}
-            </select>
-          )}
+          <select
+            value={selectedModel}
+            onChange={(e) => handleModelChange(e.target.value)}
+            className="bg-gray-50 border border-gray-200 text-gray-700 py-2 px-3 rounded w-full focus:outline-none focus:border-primary appearance-none"
+          >
+            {availableModels.map(model => (
+              <option key={model.id} value={model.id}>
+                {model.name}{model.isActive ? " (Active)" : ""}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Province Selector */}
