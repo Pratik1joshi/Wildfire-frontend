@@ -40,7 +40,7 @@ export default function UserDropdown() {
           </div>
 
           <Link
-            href="/dashboard"
+            href="/"
             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             onClick={() => setIsOpen(false)}
           >
@@ -49,16 +49,7 @@ export default function UserDropdown() {
           </Link>
 
           <Link
-            href="/profile"
-            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            onClick={() => setIsOpen(false)}
-          >
-            <i className="ri-user-settings-line mr-2"></i>
-            Profile
-          </Link>
-
-          <Link
-            href="/alerts"
+            href="/#alerts"
             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
             onClick={() => setIsOpen(false)}
           >

@@ -118,12 +118,6 @@ export default function SignInModal({ isOpen, onClose }) {
             </p>
           </div>
         </form>
-        
-        <div className="mt-6 border-t border-gray-200 pt-4">
-          <p className="text-xs text-gray-500 text-center">
-            Demo credentials: admin@example.com / admin123
-          </p>
-        </div>
       </div>
     </div>
   );
