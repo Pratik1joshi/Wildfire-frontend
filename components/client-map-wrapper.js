@@ -60,21 +60,14 @@ export default function ClientMapWrapper({
       try {
         console.log(`Fetching ${mapType} data for date: ${date}`);
         
-        // Use mock data in production when API is not available
-        if (process.env.NODE_ENV === 'production') {
-          // Just clear points and finish loading - don't show any error
-          console.log("Using mock data (empty set) in production");
-          setLoading(false);
-          return;
-        }
-        
         let endpoint = '';
         let queryParams = new URLSearchParams();
         
         // Set up the appropriate endpoint and params based on map type
         if (mapType === 'prediction') {
-          endpoint = '/api/predictions';
-          queryParams.append('date', date);
+          // Use path structure /api/predictions/date/modelid 
+          const modelId = modelVersion || 'xgb_v1.0'; // Default model if not specified
+          endpoint = `/api/predictions/${date}/${modelId}`;
           
           // Only include high/medium risk points based on filters
           if (!riskFilters.high && !riskFilters.medium) {
@@ -84,12 +77,9 @@ export default function ClientMapWrapper({
             return;
           }
           
-          // Add risk filters
+          // Add risk filters as query params
           if (riskFilters.high) queryParams.append('risk', 'high');
           if (riskFilters.medium) queryParams.append('risk', 'medium');
-          
-          // Add model version if available
-          if (modelVersion) queryParams.append('model', modelVersion);
           
           // Add location filters if available
           if (province) queryParams.append('province', province);
@@ -103,7 +93,12 @@ export default function ClientMapWrapper({
         }
         
         try {
-          const response = await fetch(`${endpoint}?${queryParams.toString()}`);
+          const fullUrl = queryParams.toString() 
+            ? `${endpoint}?${queryParams.toString()}`
+            : endpoint;
+            
+          console.log(`Making API request to: ${fullUrl}`);
+          const response = await fetch(fullUrl);
           
           if (!response.ok) {
             console.warn(`API responded with status ${response.status} - treating as empty result`);
@@ -114,6 +109,7 @@ export default function ClientMapWrapper({
           }
           
           const data = await response.json();
+          console.log(`Received data:`, data);
           
           if (!isMounted) return;
           
@@ -130,9 +126,12 @@ export default function ClientMapWrapper({
             clearPoints();
           }
         } catch (error) {
-          console.warn(`Error fetching data, treating as empty result:`, error);
-          // Just clear points, but don't show error to user
+          console.warn(`Error fetching data:`, error);
+          // Just clear points, but don't show error to user in production
           clearPoints();
+          if (process.env.NODE_ENV !== 'production' && isMounted) {
+            setLoadError(`Failed to fetch ${mapType} data. Please try again.`);
+          }
         }
       } catch (error) {
         console.error(`Error in fetch process:`, error);
