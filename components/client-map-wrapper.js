@@ -1,204 +1,191 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { useMap } from "../hooks/useMap";
+import { useEffect, useRef, useState } from 'react';
+import { useMap } from '@/hooks/useMap';
+import LoadingSpinner from './loading-spinner';
 
 export default function ClientMapWrapper({
-  mapId,
-  mapType = "prediction", // 'prediction' or 'realtime'
+  mapId = 'map',
+  mapType = 'prediction',
   date,
-  riskFilters = { high: true, medium: true },
-  focusPoint = null,
-  modelVersion = "xgb_v1.0",
-  dataSource = "BIPAD",
-  province = undefined,
-  district = undefined
+  riskFilters,
+  dataSource,
+  focusPoint,
+  modelVersion,
+  province,
+  district
 }) {
-  const containerRef = useRef(null);
-  const mapInstance = useRef(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [pointsData, setPointsData] = useState([]);
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const { initMap, addPoints, clearPoints, isLoading, setLoading } = useMap();
+  const [loadError, setLoadError] = useState(null);
+  const prevDateRef = useRef(date);
+  const prevMapTypeRef = useRef(mapType);
 
-  const { initMap, addPoints, clearPoints, centerOnPoint, setLoading } = useMap();
-
-  // Debug logging for filters
   useEffect(() => {
-    if (province || district) {
-      console.log(`Filters applied - Province: ${province}, District: ${district}`);
-    }
-  }, [province, district]);
+    let isMounted = true;
+    const initializeMap = async () => {
+      if (!mapRef.current) return;
 
-  // Log changes in data source
-  useEffect(() => {
-    if (mapType === "realtime") {
-      console.log(`Map ${mapId} data source changed to: ${dataSource}`);
-    }
-  }, [dataSource, mapId, mapType]);
+      // Only initialize map if it hasn't been initialized yet
+      if (!mapInstanceRef.current) {
+        console.log(`Initializing ${mapType} map with ID: ${mapId}`);
+        mapInstanceRef.current = await initMap(mapRef.current, mapId);
+      }
+    };
 
-  // Initialize the map
-  useEffect(() => {
-    if (containerRef.current && !mapInstance.current) {
-      const map = initMap(containerRef.current, mapId);
-      mapInstance.current = map;
-      setIsLoading(false);
-    }
-  }, [mapId, initMap]);
+    initializeMap();
 
-  // Handle data fetching
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [initMap, mapId, mapType]);
+
+  // Effect to fetch and display points when date, mapType, or filters change
   useEffect(() => {
-    const fetchData = async () => {
+    let isMounted = true;
+    
+    const fetchPoints = async () => {
+      if (!mapInstanceRef.current) return;
+      
+      // Always clear previous points before fetching new ones
+      clearPoints();
+      
+      // Only fetch data if we have a valid date
+      if (!date) return;
+      
       setLoading(true);
+      setLoadError(null);
       
       try {
-        let endpoint;
+        console.log(`Fetching ${mapType} data for date: ${date}`);
         
-        // Determine the API endpoint based on map type
-        if (mapType === "prediction") {
-          endpoint = `/api/predictions/${date}/${modelVersion}`;
-          console.log(`Fetching prediction data for date: ${date}, model: ${modelVersion}`);
-        } else if (mapType === "realtime") {
-          // Make sure to properly encode the dataSource parameter
-          const source = encodeURIComponent(dataSource);
-          // Fix the NASA_FIRMS vs FIRMS source name issue
-          if (source === "BIPAD") {
-            endpoint = `/api/realtime/${date}`;
-          } else {
-            // Handle both "NASA_FIRMS" and "FIRMS" as valid values
-            endpoint = `/api/firms/${date}`;
+        let endpoint = '';
+        let queryParams = new URLSearchParams();
+        
+        // Set up the appropriate endpoint and params based on map type
+        if (mapType === 'prediction') {
+          endpoint = '/api/predictions';
+          queryParams.append('date', date);
+          
+          // Only include high/medium risk points based on filters
+          if (!riskFilters.high && !riskFilters.medium) {
+            // If no risk levels are selected, don't fetch any data
+            clearPoints();
+            setLoading(false);
+            return;
           }
-          console.log(`Fetching realtime data for date: ${date}, source: ${dataSource}`);
-        } else {  
-          throw new Error(`Invalid map type: ${mapType}`);
+          
+          // Add risk filters
+          if (riskFilters.high) queryParams.append('risk', 'high');
+          if (riskFilters.medium) queryParams.append('risk', 'medium');
+          
+          // Add model version if available
+          if (modelVersion) queryParams.append('model', modelVersion);
+          
+          // Add location filters if available
+          if (province) queryParams.append('province', province);
+          if (district) queryParams.append('district', district);
+        } else if (mapType === 'realtime') {
+          endpoint = '/api/fires';
+          queryParams.append('date', date);
+          
+          // Add data source if available
+          if (dataSource) queryParams.append('source', dataSource);
         }
         
-        console.log(`API endpoint: ${endpoint}`);
-        const response = await fetch(endpoint);
+        const response = await fetch(`${endpoint}?${queryParams.toString()}`);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch data: ${response.statusText}`);
         }
         
         const data = await response.json();
-        console.log(`Fetched ${data.length} data points for ${mapType} map with source: ${mapType === 'realtime' ? dataSource : modelVersion}`);
         
-        // Store raw data
-        setPointsData(data);
+        if (!isMounted) return;
         
+        // Clear existing points before adding new ones - this is critical!
+        clearPoints();
+        
+        // Only try to add points if we have data
+        if (data && data.length > 0) {
+          console.log(`Adding ${data.length} points to ${mapType} map`);
+          await addPoints(data, mapType);
+        } else {
+          console.log(`No ${mapType} data found for date: ${date}`);
+          // Even though we already cleared points, let's make sure they're gone
+          clearPoints();
+        }
       } catch (error) {
         console.error(`Error fetching ${mapType} data:`, error);
-        setError(error.message);
+        if (isMounted) {
+          setLoadError(`Failed to load ${mapType} data. Please try again.`);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     
-    if (mapInstance.current && date) {
-      fetchData();
-    }
+    // Store the current date and map type for comparison
+    const dateChanged = prevDateRef.current !== date;
+    const mapTypeChanged = prevMapTypeRef.current !== mapType;
     
-  }, [mapType, date, modelVersion, dataSource, setLoading]);
+    // Update refs with current values
+    prevDateRef.current = date;
+    prevMapTypeRef.current = mapType;
+    
+    // Fetch data if date, map type or relevant filters change
+    fetchPoints();
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    date, 
+    mapType, 
+    riskFilters, 
+    dataSource, 
+    modelVersion, 
+    province, 
+    district,
+    addPoints,
+    clearPoints,
+    setLoading
+  ]);
 
-  // Filter and render points when data or filters change
+  // Effect to focus on a specific point if provided
   useEffect(() => {
-    if (!mapInstance.current || !pointsData.length) {
-      return;
+    if (focusPoint && mapInstanceRef.current) {
+      const { lat, lng } = focusPoint;
+      console.log(`Focusing map on point: ${lat}, ${lng}`);
+      mapInstanceRef.current.setView([lat, lng], 13);
     }
-    
-    // Clear existing points
-    clearPoints();
-    
-    // Filter the data based on risk level, province and district
-    const filteredData = pointsData.filter(point => {
-      // Skip invalid points
-      if (!point || typeof point !== 'object' || !point.latitude || !point.longitude) {
-        return false;
-      }
-      
-      // Apply risk filters for prediction data
-      if (mapType === "prediction") {
-        const isHighRisk = point.fire_prob > 0.95;
-        const isMediumRisk = point.fire_prob > 0.88 && point.fire_prob <= 0.95;
-        
-        if ((isHighRisk && !riskFilters.high) || (isMediumRisk && !riskFilters.medium)) {
-          return false;
-        }
-      }
-      
-      // Apply province filter if provided
-      if (province && province !== "all" && province !== undefined) {
-        // Convert province1 to 1 for comparison
-        const provinceNumber = province.replace("province", "");
-        
-        // Fix: Safely compare province values
-        // If point doesn't have PROVINCE data, exclude it when filtering by province
-        if (!point.PROVINCE) {
-          return false;
-        }
-        
-        // Convert both to strings and compare
-        const pointProvince = String(point.PROVINCE);
-        const filterProvince = String(provinceNumber);
-        
-        if (pointProvince !== filterProvince) {
-          return false;
-        }
-      }
-      
-      // Apply district filter if provided
-      if (district && district !== "all" && district !== undefined) {
-        // If point doesn't have DISTRICT data, exclude it when filtering by district
-        if (!point.DISTRICT) {
-          return false;
-        }
-        
-        // Convert both to lowercase for case-insensitive comparison
-        const pointDistrict = String(point.DISTRICT).toLowerCase();
-        const selectedDistrict = district.toLowerCase();
-        
-        // Check if the point's district contains the selected district name
-        if (!pointDistrict.includes(selectedDistrict)) {
-          return false;
-        }
-      }
-      
-      return true;
-    });
-    
-    console.log(`Filtered to ${filteredData.length} points based on filters`);
-    
-    // Add filtered points to the map
-    addPoints(filteredData, mapType);
-    
-  }, [pointsData, riskFilters, mapType, addPoints, clearPoints, province, district]);
-
-  // Focus on a specific point if provided
-  useEffect(() => {
-    if (mapInstance.current && focusPoint) {
-      centerOnPoint(focusPoint.lat, focusPoint.lng, 13);
-    }
-  }, [focusPoint, centerOnPoint]);
+  }, [focusPoint]);
 
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full relative">
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center z-10 bg-white bg-opacity-60">
-          <div className="flex flex-col items-center">
-            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3"></div>
-            <p className="text-gray-700">Loading map data{mapType === 'realtime' ? ` from ${dataSource}` : ''}...</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+          <LoadingSpinner />
+        </div>
+      )}
+      {loadError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 z-10">
+          <div className="text-red-500 text-center p-4 bg-white rounded-lg shadow-lg">
+            <p className="font-semibold">{loadError}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Reload
+            </button>
           </div>
         </div>
       )}
-      
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center z-10 bg-white bg-opacity-60">
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong className="font-bold">Error:</strong>
-            <span className="block sm:inline"> {error}</span>
-          </div>
-        </div>
-      )}
-      
-      <div ref={containerRef} className="h-full w-full"></div>
+      <div ref={mapRef} id={mapId} className="h-full w-full" />
     </div>
   );
 }
