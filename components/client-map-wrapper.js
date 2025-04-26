@@ -78,8 +78,8 @@ export default function ClientMapWrapper({
           }
           
           // Add risk filters as query params
-          if (riskFilters.high) queryParams.append('risk', 'high');
-          if (riskFilters.medium) queryParams.append('risk', 'medium');
+          // if (riskFilters.high) queryParams.append('risk', 'high');
+          // if (riskFilters.medium) queryParams.append('risk', 'medium');
           
           // Add location filters if available
           if (province) queryParams.append('province', province);
