@@ -94,27 +94,6 @@ export default function MapComparison() {
     }
   }, [availableModels]);
 
-  // Add effect to verify API endpoint availability
-  useEffect(() => {
-    // Test if the API endpoint exists
-    const checkApiEndpoint = async () => {
-      try {
-        const response = await fetch(`/api/firms?date=${formattedRealtimeDate}`);
-        if (!response.ok) {
-          setApiError(`API error: ${response.status} ${response.statusText}`);
-          console.error(`API endpoint responded with ${response.status} - ${response.statusText}`);
-        } else {
-          setApiError(null);
-        }
-      } catch (err) {
-        setApiError(`API connection error: ${err.message}`);
-        console.error("Failed to connect to API:", err);
-      }
-    };
-    
-    checkApiEndpoint();
-  }, [formattedRealtimeDate, dataSource]);
-
   return (
     <section id="compare" className="py-16 bg-gray-50">
       <div className="container mx-auto px-6">
@@ -478,29 +457,6 @@ export default function MapComparison() {
                   riskFilters={realtimeFilters}
                   dataSource={dataSource}
                 />
-                
-                {/* Add a debugging overlay when we have API errors */}
-                {apiError && (
-                  <div className="absolute inset-0 bg-gray-100 bg-opacity-90 flex items-center justify-center p-4 z-50">
-                    <div className="text-center max-w-md">
-                      <div className="text-red-500 text-4xl mb-2">⚠️</div>
-                      <h4 className="text-red-800 font-bold mb-2">API Error Detected</h4>
-                      <p className="text-sm mb-3">{apiError}</p>
-                      <div className="text-xs text-left bg-gray-200 p-3 rounded mb-3 overflow-auto max-h-32">
-                        <code>GET /api/fires?date={formattedRealtimeDate}&source={dataSource}</code>
-                        <p className="mt-1">Status: 404 Not Found</p>
-                      </div>
-                      <div className="text-sm font-medium">
-                        <p>This suggests the API endpoint is missing:</p>
-                        <ul className="text-left list-disc pl-5 mt-1">
-                          <li>Confirm your API routes are correctly deployed</li>
-                          <li>Check if you need to set up /api/fires endpoint</li>
-                          <li>Verify your API structure matches client expectations</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Source information with enhanced info for NASA FIRMS */}
