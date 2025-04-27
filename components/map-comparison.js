@@ -35,6 +35,7 @@ export default function MapComparison() {
   const [dataSource, setDataSource] = useState("BIPAD");
   const [modelVersion, setModelVersion] = useState("xgb_v1.0");
   const [isOverlayMode, setIsOverlayMode] = useState(false); // New state for overlay mode
+  const [apiError, setApiError] = useState(null); // Add state for API errors
 
   // Define static models instead of fetching from API
   const availableModels = useMemo(() => [
@@ -93,6 +94,27 @@ export default function MapComparison() {
     }
   }, [availableModels]);
 
+  // Add effect to verify API endpoint availability
+  useEffect(() => {
+    // Test if the API endpoint exists
+    const checkApiEndpoint = async () => {
+      try {
+        const response = await fetch(`/api/firms?date=${formattedRealtimeDate}`);
+        if (!response.ok) {
+          setApiError(`API error: ${response.status} ${response.statusText}`);
+          console.error(`API endpoint responded with ${response.status} - ${response.statusText}`);
+        } else {
+          setApiError(null);
+        }
+      } catch (err) {
+        setApiError(`API connection error: ${err.message}`);
+        console.error("Failed to connect to API:", err);
+      }
+    };
+    
+    checkApiEndpoint();
+  }, [formattedRealtimeDate, dataSource]);
+
   return (
     <section id="compare" className="py-16 bg-gray-50">
       <div className="container mx-auto px-6">
@@ -102,6 +124,17 @@ export default function MapComparison() {
         
         {/* Date Range Alert */}
         <DateRangeAlert className="mb-6 mx-auto" />
+        
+        {/* API Error Alert */}
+        {apiError && (
+          <div className="mb-6 mx-auto bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded relative">
+            <strong className="font-bold">API Error:</strong>
+            <span className="block sm:inline"> {apiError}</span>
+            <p className="mt-1 text-sm">
+              The API endpoint for real-time fire data might not be deployed or configured correctly.
+            </p>
+          </div>
+        )}
 
         {/* View Mode Toggle */}
         <div className="mb-6 text-center">
@@ -445,6 +478,29 @@ export default function MapComparison() {
                   riskFilters={realtimeFilters}
                   dataSource={dataSource}
                 />
+                
+                {/* Add a debugging overlay when we have API errors */}
+                {apiError && (
+                  <div className="absolute inset-0 bg-gray-100 bg-opacity-90 flex items-center justify-center p-4 z-50">
+                    <div className="text-center max-w-md">
+                      <div className="text-red-500 text-4xl mb-2">⚠️</div>
+                      <h4 className="text-red-800 font-bold mb-2">API Error Detected</h4>
+                      <p className="text-sm mb-3">{apiError}</p>
+                      <div className="text-xs text-left bg-gray-200 p-3 rounded mb-3 overflow-auto max-h-32">
+                        <code>GET /api/fires?date={formattedRealtimeDate}&source={dataSource}</code>
+                        <p className="mt-1">Status: 404 Not Found</p>
+                      </div>
+                      <div className="text-sm font-medium">
+                        <p>This suggests the API endpoint is missing:</p>
+                        <ul className="text-left list-disc pl-5 mt-1">
+                          <li>Confirm your API routes are correctly deployed</li>
+                          <li>Check if you need to set up /api/fires endpoint</li>
+                          <li>Verify your API structure matches client expectations</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Source information with enhanced info for NASA FIRMS */}
@@ -464,6 +520,14 @@ export default function MapComparison() {
                     </p>
                   </div>
                 )}
+                
+                {/* Add helpful message about API configuration */}
+                <div className="mt-2 p-2 border border-amber-200 bg-amber-50 rounded">
+                  <p>
+                    <strong>Developer Note:</strong> API endpoint /api/fires must be properly 
+                    configured to fetch real-time fire data. Check your API implementation.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

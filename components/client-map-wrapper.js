@@ -85,8 +85,14 @@ export default function ClientMapWrapper({
           if (province) queryParams.append('province', province);
           if (district) queryParams.append('district', district);
         } else if (mapType === 'realtime') {
-          endpoint = '/api/fires';
-          queryParams.append('date', date);
+          if (dataSource === "BIPAD") {
+            // Use the realtime API route for BIPAD data
+            endpoint = `/api/realtime/${date}`;
+          } else {
+            // Use firms API for NASA FIRMS data
+            endpoint = `/api/firms/${date}`;
+            queryParams.append('source', dataSource);
+          }
           
           // Add data source if available
           if (dataSource) queryParams.append('source', dataSource);
