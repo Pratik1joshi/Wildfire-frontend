@@ -91,11 +91,8 @@ export default function ClientMapWrapper({
           } else {
             // Use firms API for NASA FIRMS data
             endpoint = `/api/firms/${date}`;
-            queryParams.append('source', dataSource);
+            if (dataSource) queryParams.append('source', dataSource);
           }
-          
-          // Add data source if available
-          if (dataSource) queryParams.append('source', dataSource);
         }
         
         try {
